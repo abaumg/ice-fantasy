@@ -1,0 +1,660 @@
+openapi: 3.0.3
+info:
+  title: ICEHL Fantasy API
+  version: "0.1"
+  description: >
+    Inoffizielle Beschreibung der Fantasy-League-API der App "win2day ICE Hockey League".
+servers:
+  - url: https://icehl.hokejovyzapis.cz/api/v1
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: auth
+    description: Registrierung und Login
+  - name: fantasy-team
+    description: Eigenes Fantasy-Team
+  - name: fantasy-roster
+    description: Aufstellung und Budget
+  - name: fantasy-results
+    description: Ranglisten
+
+paths:
+  /auth/register:
+    post:
+      tags: [auth]
+      operationId: registerUser
+      summary: Nutzer registrieren
+      description: Legt den Nutzer an und liefert direkt ein Token-Paar.
+      security:
+        - apiKeyAsBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+            example:
+              email: max.mustermann@example.com
+              password: geheim123
+      responses:
+        "200":
+          description: Nutzer angelegt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthTokenResponse"
+
+  /auth/login:
+    post:
+      tags: [auth]
+      operationId: loginUser
+      summary: Einloggen
+      description: Liefert für einen registrierten Nutzer ein neues Token-Paar.
+      security:
+        - apiKeyAsBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+            example:
+              email: max.mustermann@example.com
+              password: geheim123
+      responses:
+        "200":
+          description: Login erfolgreich
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthTokenResponse"
+
+  /fantasy/teams:
+    get:
+      tags: [fantasy-team]
+      operationId: getFantasyTeam
+      summary: Eigenes Fantasy-Team abrufen
+      responses:
+        "200":
+          description: Team oder `null`
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/FantasyTeam"
+                  - type: object
+                    nullable: true
+                    enum: [null]
+                    description: Kein Team vorhanden
+              examples:
+                kein-team:
+                  value: null
+                neues-team:
+                  value:
+                    id: 1234
+                    name: HC Beispiel
+                    points: null
+                    ranking: null
+                    hasJokerRoster: false
+                team-mit-punkten:
+                  value:
+                    id: 5678
+                    name: HC Beispiel
+                    points: 30.0
+                    ranking: 558
+                    hasJokerRoster: false
+    post:
+      tags: [fantasy-team]
+      operationId: createFantasyTeam
+      summary: Fantasy-Team anlegen
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  description: Teamname
+            example:
+              name: HC Beispiel
+      responses:
+        "200":
+          description: Team angelegt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FantasyTeamCreated"
+
+  /fantasy/rosters:
+    get:
+      tags: [fantasy-roster]
+      operationId: getFantasyRoster
+      summary: Roster und Budget eines Teams in einer Runde abrufen
+      parameters:
+        - name: team
+          in: query
+          required: true
+          description: Team-ID
+          schema:
+            type: integer
+          example: 1234
+        - name: leaguePartRound
+          in: query
+          required: true
+          description: Nummer der Spielrunde
+          schema:
+            type: integer
+          example: 2
+      responses:
+        "200":
+          description: Roster und Budget
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FantasyRoster"
+              examples:
+                leer:
+                  value:
+                    rosterId: null
+                    isJokerRoster: false
+                    totalPoints: 0.0
+                    budget:
+                      total: 1000000
+                      current: 1000000
+                      playersPrice: 0
+                aufgestellt:
+                  value:
+                    rosterId: 1981
+                    isJokerRoster: false
+                    totalPoints: 0.0
+                    budget:
+                      total: 1000000
+                      current: 13000
+                      playersPrice: 987000
+                    team: { id: 5678, name: HC Beispiel }
+                    captain: null
+                    goalie:
+                      playerId: 1001
+                      rosterPlayerId: 20001
+                      firstName: Anton
+                      lastName: Beispiel
+                      imageUrl: https://example.com/players/1001.jpg
+                      jersey: 30
+                      teamId: 1
+                      teamName: Beispiel Eagles
+                      teamShortcut: BEA
+                      teamLogo: https://example.com/logos/1.png
+                      fantasyPrice: 160000
+                      position: GK
+                    leftDefender:
+                      playerId: 1002
+                      rosterPlayerId: 20002
+                      firstName: Bruno
+                      lastName: Beispiel
+                      imageUrl: https://example.com/players/1002.jpg
+                      jersey: 4
+                      teamId: 2
+                      teamName: Muster Bears
+                      teamShortcut: MBE
+                      teamLogo: https://example.com/logos/2.png
+                      fantasyPrice: 110000
+                      position: DE
+                    rightDefender:
+                      playerId: 1003
+                      rosterPlayerId: 20003
+                      firstName: Carl
+                      lastName: Beispiel
+                      imageUrl: https://example.com/players/1003.jpg
+                      jersey: 5
+                      teamId: 3
+                      teamName: Test Wolves
+                      teamShortcut: TWO
+                      teamLogo: https://example.com/logos/3.png
+                      fantasyPrice: 152000
+                      position: DE
+                    leftForward:
+                      playerId: 1004
+                      rosterPlayerId: 20004
+                      firstName: David
+                      lastName: Beispiel
+                      imageUrl: https://example.com/players/1004.jpg
+                      jersey: 11
+                      teamId: 3
+                      teamName: Test Wolves
+                      teamShortcut: TWO
+                      teamLogo: https://example.com/logos/3.png
+                      fantasyPrice: 241000
+                      position: FW
+                    centerForward:
+                      playerId: 1005
+                      rosterPlayerId: 20005
+                      firstName: Emil
+                      lastName: Beispiel
+                      imageUrl: https://example.com/players/1005.jpg
+                      jersey: 16
+                      teamId: 2
+                      teamName: Muster Bears
+                      teamShortcut: MBE
+                      teamLogo: https://example.com/logos/2.png
+                      fantasyPrice: 92000
+                      position: FW
+                    rightForward:
+                      playerId: 1006
+                      rosterPlayerId: 20006
+                      firstName: Fritz
+                      lastName: Beispiel
+                      imageUrl: https://example.com/players/1006.jpg
+                      jersey: 64
+                      teamId: 4
+                      teamName: Demo Sharks
+                      teamShortcut: DSH
+                      teamLogo: https://example.com/logos/4.png
+                      fantasyPrice: 232000
+                      position: FW
+                    goaliePrice: 160000
+                    leftDefenderPrice: 110000
+                    rightDefenderPrice: 152000
+                    leftForwardPrice: 241000
+                    centerForwardPrice: 92000
+                    rightForwardPrice: 232000
+                    goaliePoints: 0.0
+                    leftDefenderPoints: 0.0
+                    rightDefenderPoints: 0.0
+                    leftForwardPoints: 0.0
+                    centerForwardPoints: 0.0
+                    rightForwardPoints: 0.0
+
+  /fantasy/ranking:
+    get:
+      tags: [fantasy-results]
+      operationId: getFantasyRanking
+      summary: Platzierung eines Teams abrufen
+      parameters:
+        - name: team
+          in: query
+          required: true
+          description: Team-ID
+          schema:
+            type: integer
+          example: 5678
+      responses:
+        "200":
+          description: Rangeintrag oder `null`
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/FantasyResultEntry"
+                  - type: object
+                    nullable: true
+                    enum: [null]
+                    description: Noch keine Platzierung
+              examples:
+                ohne-punkte:
+                  value: null
+                mit-punkten:
+                  value:
+                    id: 5678
+                    name: HC Beispiel
+                    points: 30.0
+                    ranking: 558
+
+  /fantasy/results:
+    get:
+      tags: [fantasy-results]
+      operationId: getFantasyResults
+      summary: Rangliste aller Fantasy-Teams abrufen
+      description: Absteigend nach Punkten sortiert.
+      parameters:
+        - name: league
+          in: query
+          required: true
+          description: Liga-ID
+          schema:
+            type: integer
+          example: 1
+        - name: season
+          in: query
+          required: true
+          description: Startjahr der Saison (2026 = Saison 2026/27)
+          schema:
+            type: integer
+          example: 2026
+        - name: start
+          in: query
+          required: true
+          description: Nullbasierter Offset in der Liste, nicht der Rang (Ränge können fehlen)
+          schema:
+            type: integer
+            minimum: 0
+          example: 50
+        - name: count
+          in: query
+          required: true
+          description: Anzahl Einträge pro Seite
+          schema:
+            type: integer
+          example: 50
+      responses:
+        "200":
+          description: Eine Seite der Rangliste
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FantasyResultEntry"
+              example:
+                - id: 101
+                  name: Beispiel-Team A
+                  points: 71.0
+                  ranking: 1
+                - id: 102
+                  name: Beispiel-Team B
+                  points: 66.5
+                  ranking: 2
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "`access_token` aus `/auth/register` oder `/auth/login`."
+    apiKeyAsBearer:
+      type: http
+      scheme: bearer
+      description: Statischer App-Schlüssel für Aufrufe ohne eingeloggten Nutzer.
+
+  schemas:
+    AuthTokenResponse:
+      type: object
+      required: [access_token, refresh_token, token_type, expires_in, user]
+      properties:
+        access_token:
+          type: string
+          description: JWT für die `/fantasy/*`-Endpunkte
+          example: eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9....
+        refresh_token:
+          type: string
+          example: 09cb38f60568a19579fca557fdb4786d7bd1a17b467a544a524694b79b274c66
+        token_type:
+          type: string
+          example: Bearer
+        expires_in:
+          type: integer
+          description: Gültigkeit des `access_token` in Sekunden
+          example: 3600
+        user:
+          $ref: "#/components/schemas/User"
+
+    User:
+      type: object
+      required: [id, email, first_name, last_name, phone, favourite_team]
+      properties:
+        id:
+          type: integer
+          description: Nutzer-ID (entspricht dem `sub`-Claim des JWT)
+          example: 1744
+        email:
+          type: string
+          example: max.mustermann@example.com
+        first_name:
+          nullable: true
+          description: Vorname
+        last_name:
+          nullable: true
+          description: Nachname
+        phone:
+          nullable: true
+          description: Telefonnummer
+        favourite_team:
+          nullable: true
+          description: Lieblingsverein
+
+    FantasyTeam:
+      type: object
+      required: [id, name, points, ranking, hasJokerRoster]
+      properties:
+        id:
+          type: integer
+          description: Team-ID
+          example: 1234
+        name:
+          type: string
+          example: HC Beispiel
+        points:
+          type: number
+          nullable: true
+          description: Gesamtpunkte
+          example: 30.0
+        ranking:
+          type: integer
+          nullable: true
+          description: Platzierung in der Gesamtrangliste
+          example: 558
+        hasJokerRoster:
+          type: boolean
+
+    FantasyTeamCreated:
+      type: object
+      required: [success, team]
+      properties:
+        success:
+          type: boolean
+          example: true
+        team:
+          type: integer
+          description: ID des neuen Teams
+          example: 1234
+
+    FantasyRoster:
+      type: object
+      description: Ohne gespeicherte Aufstellung fehlen alle nicht erforderlichen Felder.
+      required: [rosterId, isJokerRoster, totalPoints, budget]
+      properties:
+        rosterId:
+          type: integer
+          nullable: true
+          description: Roster-ID
+          example: 1981
+        isJokerRoster:
+          type: boolean
+        totalPoints:
+          type: number
+          description: Gesamtpunkte des Rosters
+          example: 0.0
+        budget:
+          $ref: "#/components/schemas/FantasyBudget"
+        team:
+          type: object
+          required: [id, name]
+          properties:
+            id:
+              type: integer
+              description: Team-ID
+            name:
+              type: string
+        captain:
+          nullable: true
+          description: Captain der Aufstellung
+        goalie:
+          allOf:
+            - $ref: "#/components/schemas/FantasyRosterPlayer"
+          description: Goalie
+        leftDefender:
+          allOf:
+            - $ref: "#/components/schemas/FantasyRosterPlayer"
+          description: Linker Verteidiger
+        rightDefender:
+          allOf:
+            - $ref: "#/components/schemas/FantasyRosterPlayer"
+          description: Rechter Verteidiger
+        leftForward:
+          allOf:
+            - $ref: "#/components/schemas/FantasyRosterPlayer"
+          description: Linker Flügel
+        centerForward:
+          allOf:
+            - $ref: "#/components/schemas/FantasyRosterPlayer"
+          description: Center
+        rightForward:
+          allOf:
+            - $ref: "#/components/schemas/FantasyRosterPlayer"
+          description: Rechter Flügel
+        goaliePrice:
+          type: integer
+          description: Preis des Goalies
+        leftDefenderPrice:
+          type: integer
+          description: Preis des linken Verteidigers
+        rightDefenderPrice:
+          type: integer
+          description: Preis des rechten Verteidigers
+        leftForwardPrice:
+          type: integer
+          description: Preis des linken Flügels
+        centerForwardPrice:
+          type: integer
+          description: Preis des Centers
+        rightForwardPrice:
+          type: integer
+          description: Preis des rechten Flügels
+        goaliePoints:
+          type: number
+          description: Punkte des Goalies
+        leftDefenderPoints:
+          type: number
+          description: Punkte des linken Verteidigers
+        rightDefenderPoints:
+          type: number
+          description: Punkte des rechten Verteidigers
+        leftForwardPoints:
+          type: number
+          description: Punkte des linken Flügels
+        centerForwardPoints:
+          type: number
+          description: Punkte des Centers
+        rightForwardPoints:
+          type: number
+          description: Punkte des rechten Flügels
+
+    FantasyRosterPlayer:
+      type: object
+      required:
+        - playerId
+        - rosterPlayerId
+        - firstName
+        - lastName
+        - imageUrl
+        - jersey
+        - teamId
+        - teamName
+        - teamShortcut
+        - teamLogo
+        - fantasyPrice
+        - position
+      properties:
+        playerId:
+          type: integer
+          example: 1001
+        rosterPlayerId:
+          type: integer
+          description: ID des Spielers innerhalb dieses Rosters
+          example: 20001
+        firstName:
+          type: string
+        lastName:
+          type: string
+        imageUrl:
+          type: string
+          format: uri
+          description: Foto des Spielers
+          example: https://example.com/players/1001.jpg
+        jersey:
+          type: integer
+          description: Trikotnummer
+          example: 30
+        teamId:
+          type: integer
+          description: ID des Vereins
+          example: 1
+        teamName:
+          type: string
+          example: Beispiel Eagles
+        teamShortcut:
+          type: string
+          example: BEA
+        teamLogo:
+          type: string
+          format: uri
+          example: https://example.com/logos/1.png
+        fantasyPrice:
+          type: integer
+          description: Preis im Fantasy-Spiel
+          example: 160000
+        position:
+          type: string
+          enum: [GK, DE, FW]
+          description: Goalie (`GK`), Verteidiger (`DE`) oder Forward (`FW`, Flügel oder Center)
+
+    FantasyBudget:
+      type: object
+      required: [total, current, playersPrice]
+      properties:
+        total:
+          type: integer
+          description: Maximalbudget, das insgesamt zur Verfügung steht
+          example: 1000000
+        current:
+          type: integer
+          description: Noch nicht ausgegebenes Budget (Maximalbudget abzüglich Spielerpreise)
+          example: 13000
+        playersPrice:
+          type: integer
+          description: Summe der Preise der aufgestellten Spieler
+          example: 987000
+
+    FantasyResultEntry:
+      type: object
+      required: [id, name, points, ranking]
+      properties:
+        id:
+          type: integer
+          description: Team-ID
+          example: 101
+        name:
+          type: string
+          description: Teamname
+          example: Beispiel-Team A
+        points:
+          type: number
+          description: Gesamtpunkte, auch halbe Punkte (z. B. 30.5)
+          example: 71.0
+        ranking:
+          type: integer
+          description: >
+            Platzierung ab 1. Teams mit gleicher Punktzahl haben aufeinander-
+            folgende Ränge; einzelne Ränge können fehlen.
+          example: 1
