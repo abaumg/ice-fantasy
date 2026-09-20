@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>ICEHL Fantasy Gruppentabelle</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>ICEHL Fantasy</h1>
+        <p id="meta">Lade Daten …</p>
+      </header>
+
+      <div class="tabs" role="tablist" aria-label="Ansicht">
+        <button role="tab" id="tab-gruppe" aria-controls="panel">
+          <span class="tab-label" id="tab-gruppe-label">Gruppe</span>
+          <span class="tab-count" id="tab-gruppe-count"></span>
+        </button>
+        <button role="tab" id="tab-gesamt" aria-controls="panel">
+          <span class="tab-label">Gesamt</span>
+          <span class="tab-count" id="tab-gesamt-count"></span>
+        </button>
+      </div>
+
+      <section id="panel" role="tabpanel">
+        <details id="editor" hidden>
+          <summary>Gruppe verwalten</summary>
+          <div class="editor-body">
+            <label>
+              Gruppenname
+              <input id="group-name" type="text" maxlength="40" />
+            </label>
+            <label>
+              Link zum Teilen
+              <span class="row">
+                <input id="share-url" type="text" readonly />
+                <button id="copy" type="button">Kopieren</button>
+              </span>
+            </label>
+            <p class="hint" id="storage-note" hidden>
+              Speichern im Browser ist nicht möglich. Die Gruppe geht beim
+              Neuladen verloren, es sei denn, du öffnest sie über den Link.
+            </p>
+            <button id="clear" type="button" class="danger">
+              Gruppe leeren
+            </button>
+          </div>
+        </details>
+
+        <input
+          id="search"
+          type="search"
+          placeholder="Team suchen …"
+          autocomplete="off"
+          aria-label="Teams filtern"
+        />
+
+        <div id="message" class="message" hidden></div>
+
+        <div class="table-wrap">
+          <table id="table" hidden>
+            <thead></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <footer>
+        Inoffizielles Fan-Projekt, nicht mit der ICE Hockey League oder win2day
+        verbunden. Die Rangliste wird einmal täglich aktualisiert.
+      </footer>
+    </main>
+    <script src="app.js"></script>
+  </body>
+</html>
