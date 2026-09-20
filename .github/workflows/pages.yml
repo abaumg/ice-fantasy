@@ -1,0 +1,42 @@
+name: Rangliste laden und veröffentlichen
+
+on:
+  schedule:
+    # UTC: 03:00 MEZ im Winter, 04:00 MESZ im Sommer
+    - cron: "0 2 * * *"
+  push:
+    branches: [main]
+    paths: [site/**, scripts/**, .github/workflows/pages.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Rangliste laden
+        env:
+          ICEHL_EMAIL: ${{ secrets.ICEHL_EMAIL }}
+          ICEHL_PASSWORD: ${{ secrets.ICEHL_PASSWORD }}
+          ICEHL_API_KEY: ${{ secrets.ICEHL_API_KEY }}
+        run: python3 scripts/fetch_standings.py
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+      - id: deployment
+        uses: actions/deploy-pages@v5
