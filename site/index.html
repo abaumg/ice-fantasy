@@ -28,13 +28,14 @@
               Gruppenplatz und Platz in der Gesamtrangliste.
             </li>
             <li>
-              <strong>Die Gruppe wird nirgends gespeichert</strong>, weder im
-              Browser noch auf einem Server. Sie steckt nur im Link in der
+              <strong>Die Gruppe wird nirgends gespeichert</strong>, weder auf
+              einem Server noch im Browser. Sie steckt nur im Link in der
               Adresszeile und ändert sich mit jedem Klick.
             </li>
             <li>
               Setze ein <strong>Lesezeichen</strong> oder kopiere den Link. Ohne
-              den Link ist die Gruppe beim nächsten Besuch weg.
+              den Link ist die Gruppe beim nächsten Besuch weg. Optional merkt
+              sich dein Browser die Gruppe: Häkchen unter „Gruppe verwalten“.
             </li>
           </ol>
         </div>
@@ -67,8 +68,15 @@
               </span>
             </label>
             <p class="hint">
-              Nur dieser Link enthält die Gruppe. Bewahre ihn auf, zum Beispiel
-              als Lesezeichen.
+              Standardmäßig steckt die Gruppe nur in diesem Link. Bewahre ihn
+              auf, zum Beispiel als Lesezeichen.
+            </p>
+            <label class="check">
+              <input id="remember" type="checkbox" />
+              Diese Gruppe auf diesem Gerät merken
+            </label>
+            <p class="hint" id="remember-note" hidden>
+              Speichern im Browser ist nicht möglich.
             </p>
             <button id="clear" type="button" class="danger">
               Gruppe leeren

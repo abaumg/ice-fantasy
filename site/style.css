@@ -317,3 +317,17 @@ button:disabled {
   opacity: 0.5;
   cursor: default;
 }
+
+label.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+label.check input {
+  width: auto;
+  margin: 0;
+  padding: 0;
+}

@@ -1,9 +1,13 @@
 "use strict";
 
-// Die Gruppe wird nirgends gespeichert. Der gesamte Zustand steckt in der URL:
+// Der gesamte Zustand steckt in der URL und wird nirgends gespeichert:
 //   ?name=<Gruppenname>&ids=<Team-IDs aufsteigend>&tab=<gruppe|gesamt>&q=<Suche>
+// Einzige Ausnahme ist das Häkchen "Gruppe merken": Dann hält der Browser die
+// Gruppe zusätzlich im localStorage und lädt sie, wenn die Seite ohne Gruppe
+// in der URL geöffnet wird. Ein Link hat immer Vorrang.
 
 const DATA_URL = "data/standings.json";
+const STORAGE_KEY = "icehl-fantasy-group";
 const DEFAULT_NAME = "Meine Gruppe";
 const MAX_NAME = 40;
 const MAX_IDS = 200;
@@ -44,6 +48,8 @@ const state = {
   tab: "gesamt",
   query: "",
   loadFailed: false,
+  remember: false,
+  rememberFailed: false,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -68,13 +74,42 @@ function normalizeGroup(raw) {
   };
 }
 
-function displayName() {
-  return state.group.name.trim() || DEFAULT_NAME;
-}
+const nameOf = (group) => group.name.trim() || DEFAULT_NAME;
+const displayName = () => nameOf(state.group);
+const sameGroup = (a, b) =>
+  nameOf(a) === nameOf(b) && a.ids.join() === b.ids.join();
 
 const defaultTab = () => (state.group.ids.length ? "gruppe" : "gesamt");
 
-// URL als einziger Speicher
+// Optionaler Speicher im Browser (nur mit Häkchen)
+
+function readStored() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? normalizeGroup(JSON.parse(raw)) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStored() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.group));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function clearStored() {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // nichts zu tun
+  }
+}
+
+// URL als maßgeblicher Speicher
 
 function readUrl() {
   const params = new URLSearchParams(location.search);
@@ -82,6 +117,7 @@ function readUrl() {
     .split(",")
     .map((part) => Number(part.trim()));
   return {
+    hasGroup: params.has("ids") || params.has("name"),
     group: normalizeGroup({ name: params.get("name"), ids }),
     tab: params.get("tab"),
     query: params.get("q") ?? "",
@@ -279,6 +315,8 @@ function renderChrome() {
   $("share-url").value = shareUrl();
   $("copy").disabled = ids.length === 0;
   $("clear").disabled = ids.length === 0;
+  $("remember").checked = state.remember;
+  $("remember-note").hidden = !state.rememberFailed;
   $("search").placeholder =
     state.tab === "gruppe" ? "In der Gruppe suchen …" : "Team suchen …";
   syncUrl();
@@ -290,6 +328,33 @@ function render() {
 }
 
 // Interaktion
+
+// Nach jeder Änderung an der Gruppe (Name oder Teams)
+function groupChanged() {
+  if (state.remember && !writeStored()) {
+    state.remember = false;
+    state.rememberFailed = true;
+  }
+  renderChrome();
+}
+
+function toggleRemember(wanted) {
+  if (wanted) {
+    const stored = readStored();
+    const replaces = stored && !sameGroup(stored, state.group);
+    const question =
+      `Auf diesem Gerät ist die Gruppe „${stored && nameOf(stored)}“ ` +
+      `(${stored?.ids.length} Teams) gemerkt. Durch „${displayName()}“ ersetzen?`;
+    if (replaces && !confirm(question)) return renderChrome();
+    state.remember = writeStored();
+    state.rememberFailed = !state.remember;
+  } else {
+    clearStored();
+    state.remember = false;
+    state.rememberFailed = false;
+  }
+  renderChrome();
+}
 
 function setTab(tab) {
   state.tab = tab;
@@ -310,7 +375,7 @@ function toggleTeam(id, button) {
     ids.push(id);
     ids.sort((a, b) => a - b);
   }
-  renderChrome();
+  groupChanged();
 
   if (state.tab === "gruppe") {
     renderList();
@@ -361,14 +426,17 @@ function wire() {
 
   $("group-name").addEventListener("input", (event) => {
     state.group.name = event.target.value.slice(0, MAX_NAME);
-    renderChrome();
+    groupChanged();
   });
+  $("remember").addEventListener("change", (event) =>
+    toggleRemember(event.target.checked),
+  );
   $("copy").addEventListener("click", copyShareUrl);
   $("clear").addEventListener("click", () => {
     const { ids } = state.group;
     if (confirm(`Alle ${ids.length} Teams aus „${displayName()}“ entfernen?`)) {
       ids.length = 0;
-      renderChrome();
+      groupChanged();
       renderList();
     }
   });
@@ -376,7 +444,12 @@ function wire() {
 
 async function init() {
   const fromUrl = readUrl();
-  state.group = fromUrl.group;
+  const stored = readStored();
+  // Ein Link hat Vorrang. Ohne Gruppe in der URL greift die gemerkte Gruppe.
+  state.group = fromUrl.hasGroup ? fromUrl.group : (stored ?? fromUrl.group);
+  // "Merken" gilt nur, wenn die angezeigte Gruppe die gemerkte ist. Bei einem
+  // fremden Link bleibt die gemerkte Gruppe unangetastet.
+  state.remember = stored !== null && sameGroup(stored, state.group);
   state.tab = TABS.includes(fromUrl.tab) ? fromUrl.tab : defaultTab();
   state.query = fromUrl.query;
   $("group-name").value = state.group.name;
