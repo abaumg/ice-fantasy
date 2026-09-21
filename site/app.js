@@ -18,14 +18,14 @@ const points = new Intl.NumberFormat("de-AT", { maximumFractionDigits: 1 });
 const COLUMNS = {
   gruppe: [
     { label: "#", title: "Platz in der Gruppe", num: true, primary: true },
-    { label: "Team" },
-    { label: "Punkte", num: true },
     {
       label: "Gesamt",
       title: "Platz in der Gesamtrangliste",
       num: true,
       secondary: true,
     },
+    { label: "Team" },
+    { label: "Punkte", num: true },
     { label: "In Gruppe", hidden: true },
   ],
   gesamt: [
@@ -218,6 +218,9 @@ function buildRow(team, groupIds) {
 
   const rank = state.tab === "gruppe" ? team.groupRank : team.ranking;
   row.append(el("td", "num rank", rank ?? "–"));
+  if (state.tab === "gruppe") {
+    row.append(el("td", "num secondary", team.missing ? "–" : team.ranking));
+  }
 
   const name = el("td", "name");
   if (team.missing) {
@@ -228,9 +231,6 @@ function buildRow(team, groupIds) {
   row.append(name);
 
   row.append(el("td", "num", team.missing ? "–" : points.format(team.points)));
-  if (state.tab === "gruppe") {
-    row.append(el("td", "num secondary", team.missing ? "–" : team.ranking));
-  }
 
   const star = el("button", "star");
   star.setAttribute(

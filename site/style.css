@@ -269,12 +269,15 @@ td.name small {
 }
 
 td.rank {
+  padding-right: 6px;
   font-weight: 600;
 }
 
+th.secondary,
 td.secondary {
+  padding-left: 0;
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 400;
 }
 
