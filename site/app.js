@@ -1,23 +1,36 @@
 "use strict";
 
-const STORAGE_KEY = "icehl-fantasy-group";
+// Die Gruppe wird nirgends gespeichert. Der gesamte Zustand steckt in der URL:
+//   ?name=<Gruppenname>&ids=<Team-IDs aufsteigend>&tab=<gruppe|gesamt>&q=<Suche>
+
 const DATA_URL = "data/standings.json";
 const DEFAULT_NAME = "Meine Gruppe";
 const MAX_NAME = 40;
 const MAX_IDS = 200;
+const TABS = ["gruppe", "gesamt"];
 
 const points = new Intl.NumberFormat("de-AT", { maximumFractionDigits: 1 });
 
 const COLUMNS = {
   gruppe: [
-    { label: "#", num: true },
+    { label: "#", title: "Platz in der Gruppe", num: true, primary: true },
     { label: "Team" },
     { label: "Punkte", num: true },
-    { label: "Gesamt", num: true },
+    {
+      label: "Gesamt",
+      title: "Platz in der Gesamtrangliste",
+      num: true,
+      secondary: true,
+    },
     { label: "In Gruppe", hidden: true },
   ],
   gesamt: [
-    { label: "Platz", num: true },
+    {
+      label: "#",
+      title: "Platz in der Gesamtrangliste",
+      num: true,
+      primary: true,
+    },
     { label: "Team" },
     { label: "Punkte", num: true },
     { label: "In Gruppe", hidden: true },
@@ -30,7 +43,6 @@ const state = {
   group: { name: DEFAULT_NAME, ids: [] },
   tab: "gesamt",
   query: "",
-  storageOk: true,
   loadFailed: false,
 };
 
@@ -43,89 +55,66 @@ function el(tag, className, text) {
   return node;
 }
 
-// Gruppe: Normalisierung, Speicher, Link
+// Gruppe
 
 function normalizeGroup(raw) {
   const ids = Array.isArray(raw?.ids) ? raw.ids.map(Number) : [];
   const unique = new Set(ids.filter((id) => Number.isInteger(id) && id > 0));
   const name =
     typeof raw?.name === "string" ? raw.name.trim().slice(0, MAX_NAME) : "";
-  return { name: name || DEFAULT_NAME, ids: [...unique].slice(0, MAX_IDS) };
+  return {
+    name: name || DEFAULT_NAME,
+    ids: [...unique].slice(0, MAX_IDS).sort((a, b) => a - b),
+  };
 }
 
-function displayName(group = state.group) {
-  return group.name.trim() || DEFAULT_NAME;
+function displayName() {
+  return state.group.name.trim() || DEFAULT_NAME;
 }
 
-function loadGroup() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return normalizeGroup(JSON.parse(raw));
-  } catch {
-    // Speicher nicht verfügbar oder Inhalt defekt: mit leerer Gruppe starten
-  }
-  return normalizeGroup(null);
-}
+const defaultTab = () => (state.group.ids.length ? "gruppe" : "gesamt");
 
-function saveGroup() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.group));
-    state.storageOk = true;
-  } catch {
-    state.storageOk = false;
-  }
-  return state.storageOk;
-}
+// URL als einziger Speicher
 
-function groupFromUrl() {
+function readUrl() {
   const params = new URLSearchParams(location.search);
   const ids = (params.get("ids") ?? "")
     .split(",")
     .map((part) => Number(part.trim()));
-  const group = normalizeGroup({ name: params.get("name"), ids });
-  return group.ids.length ? group : null;
+  return {
+    group: normalizeGroup({ name: params.get("name"), ids }),
+    tab: params.get("tab"),
+    query: params.get("q") ?? "",
+  };
 }
 
-function sameGroup(a, b) {
-  return (
-    displayName(a) === displayName(b) &&
-    a.ids.length === b.ids.length &&
-    a.ids.every((id) => b.ids.includes(id))
-  );
-}
-
-function importGroupFromUrl() {
-  const fromUrl = groupFromUrl();
-  if (!fromUrl) return;
-
-  const current = state.group;
-  const replace =
-    current.ids.length === 0 ||
-    sameGroup(current, fromUrl) ||
-    confirm(
-      `Gruppe „${fromUrl.name}“ (${fromUrl.ids.length} Teams) aus dem Link übernehmen?\n` +
-        `Die gespeicherte Gruppe „${displayName(current)}“ wird ersetzt.`,
-    );
-  if (replace) {
-    state.group = fromUrl;
-    // Ohne Speicher bleiben die Parameter in der URL, damit ein Neuladen greift.
-    if (!saveGroup()) return;
+// Standardwerte werden weggelassen, damit die Links kurz bleiben.
+function urlFor({ view }) {
+  const { ids } = state.group;
+  const parts = [];
+  if (displayName() !== DEFAULT_NAME) {
+    parts.push(`name=${encodeURIComponent(displayName())}`);
   }
-  history.replaceState(null, "", location.pathname + location.hash);
+  if (ids.length) parts.push(`ids=${ids.join(",")}`);
+  if (view) {
+    if (state.tab !== defaultTab()) parts.push(`tab=${state.tab}`);
+    const query = state.query.trim();
+    if (query) parts.push(`q=${encodeURIComponent(query)}`);
+  }
+  return location.pathname + (parts.length ? `?${parts.join("&")}` : "");
+}
+
+function syncUrl() {
+  try {
+    history.replaceState(null, "", urlFor({ view: true }));
+  } catch {
+    // z. B. in eingebetteten Frames nicht erlaubt: Seite funktioniert weiter
+  }
 }
 
 function shareUrl() {
   if (!state.group.ids.length) return "";
-  const url = new URL(location.href);
-  url.search = "";
-  url.hash = "";
-  const name = encodeURIComponent(displayName());
-  return `${url.href}?name=${name}&ids=${state.group.ids.join(",")}`;
-}
-
-function commit() {
-  saveGroup();
-  renderChrome();
+  return new URL(urlFor({ view: false }), location.href).href;
 }
 
 // Daten
@@ -192,7 +181,7 @@ function buildRow(team, groupIds) {
   row.dataset.id = team.id;
 
   const rank = state.tab === "gruppe" ? team.groupRank : team.ranking;
-  row.append(el("td", "num", team.missing && rank === undefined ? "–" : rank));
+  row.append(el("td", "num rank", rank ?? "–"));
 
   const name = el("td", "name");
   if (team.missing) {
@@ -204,7 +193,7 @@ function buildRow(team, groupIds) {
 
   row.append(el("td", "num", team.missing ? "–" : points.format(team.points)));
   if (state.tab === "gruppe") {
-    row.append(el("td", "num", team.missing ? "–" : team.ranking));
+    row.append(el("td", "num secondary", team.missing ? "–" : team.ranking));
   }
 
   const star = el("button", "star");
@@ -222,7 +211,9 @@ function buildRow(team, groupIds) {
 function buildHead() {
   const row = el("tr");
   for (const column of COLUMNS[state.tab]) {
-    const th = el("th", column.num ? "num" : "");
+    const classes = [column.num && "num", column.secondary && "secondary"];
+    const th = el("th", classes.filter(Boolean).join(" "));
+    if (column.title) th.title = column.title;
     th.append(
       column.hidden ? el("span", "sr-only", column.label) : column.label,
     );
@@ -237,7 +228,7 @@ function messageFor(rows) {
   }
   if (state.tab === "gruppe" && state.group.ids.length === 0) {
     return {
-      text: "Die Gruppe ist noch leer. Markiere Teams in der Gesamttabelle mit ☆ oder öffne einen Gruppen-Link.",
+      text: "Die Gruppe ist noch leer. Markiere Teams in der Gesamttabelle mit ☆.",
       action: { label: "Teams auswählen", tab: "gesamt" },
     };
   }
@@ -270,6 +261,7 @@ function renderList() {
   );
 }
 
+// Rahmen (Tabs, Editor) und URL nach jeder Zustandsänderung aktualisieren
 function renderChrome() {
   const { ids } = state.group;
   $("tab-gruppe-label").textContent = displayName();
@@ -277,7 +269,7 @@ function renderChrome() {
   $("tab-gesamt-count").textContent = state.teams.length
     ? `(${state.teams.length})`
     : "";
-  for (const tab of ["gruppe", "gesamt"]) {
+  for (const tab of TABS) {
     const button = $(`tab-${tab}`);
     const selected = state.tab === tab;
     button.setAttribute("aria-selected", String(selected));
@@ -287,9 +279,9 @@ function renderChrome() {
   $("share-url").value = shareUrl();
   $("copy").disabled = ids.length === 0;
   $("clear").disabled = ids.length === 0;
-  $("storage-note").hidden = state.storageOk;
   $("search").placeholder =
     state.tab === "gruppe" ? "In der Gruppe suchen …" : "Team suchen …";
+  syncUrl();
 }
 
 function render() {
@@ -303,7 +295,6 @@ function setTab(tab) {
   state.tab = tab;
   state.query = "";
   $("search").value = "";
-  history.replaceState(null, "", `#${tab}`);
   render();
 }
 
@@ -317,8 +308,9 @@ function toggleTeam(id, button) {
     return;
   } else {
     ids.push(id);
+    ids.sort((a, b) => a - b);
   }
-  commit();
+  renderChrome();
 
   if (state.tab === "gruppe") {
     renderList();
@@ -358,6 +350,7 @@ function wire() {
 
   $("search").addEventListener("input", (event) => {
     state.query = event.target.value;
+    syncUrl();
     renderList();
   });
 
@@ -368,30 +361,28 @@ function wire() {
 
   $("group-name").addEventListener("input", (event) => {
     state.group.name = event.target.value.slice(0, MAX_NAME);
-    commit();
+    renderChrome();
   });
   $("copy").addEventListener("click", copyShareUrl);
   $("clear").addEventListener("click", () => {
     const { ids } = state.group;
     if (confirm(`Alle ${ids.length} Teams aus „${displayName()}“ entfernen?`)) {
       ids.length = 0;
-      commit();
+      renderChrome();
       renderList();
     }
   });
 }
 
-function initialTab() {
-  const hash = location.hash.slice(1);
-  if (hash === "gruppe" || hash === "gesamt") return hash;
-  return state.group.ids.length ? "gruppe" : "gesamt";
-}
-
 async function init() {
-  state.group = loadGroup();
-  importGroupFromUrl();
+  const fromUrl = readUrl();
+  state.group = fromUrl.group;
+  state.tab = TABS.includes(fromUrl.tab) ? fromUrl.tab : defaultTab();
+  state.query = fromUrl.query;
   $("group-name").value = state.group.name;
-  state.tab = initialTab();
+  $("search").value = state.query;
+  // Erklärung beim ersten Besuch (ohne Gruppe) aufgeklappt zeigen
+  $("help").open = state.group.ids.length === 0;
   wire();
 
   try {

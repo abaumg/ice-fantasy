@@ -7,12 +7,38 @@
     <title>ICEHL Fantasy Gruppentabelle</title>
     <link rel="stylesheet" href="style.css" />
   </head>
+
   <body>
     <main>
       <header>
         <h1>ICEHL Fantasy</h1>
         <p id="meta">Lade Daten …</p>
       </header>
+
+      <details id="help" class="card">
+        <summary>So funktioniert’s</summary>
+        <div class="help-body">
+          <ol>
+            <li>
+              Öffne den Tab <strong>Gesamt</strong> und markiere die Teams
+              deiner Gruppe mit ☆.
+            </li>
+            <li>
+              Im Gruppen-Tab siehst du diese Teams im Vergleich, mit
+              Gruppenplatz und Platz in der Gesamtrangliste.
+            </li>
+            <li>
+              <strong>Die Gruppe wird nirgends gespeichert</strong>, weder im
+              Browser noch auf einem Server. Sie steckt nur im Link in der
+              Adresszeile und ändert sich mit jedem Klick.
+            </li>
+            <li>
+              Setze ein <strong>Lesezeichen</strong> oder kopiere den Link. Ohne
+              den Link ist die Gruppe beim nächsten Besuch weg.
+            </li>
+          </ol>
+        </div>
+      </details>
 
       <div class="tabs" role="tablist" aria-label="Ansicht">
         <button role="tab" id="tab-gruppe" aria-controls="panel">
@@ -26,7 +52,7 @@
       </div>
 
       <section id="panel" role="tabpanel">
-        <details id="editor" hidden>
+        <details id="editor" class="card" hidden>
           <summary>Gruppe verwalten</summary>
           <div class="editor-body">
             <label>
@@ -34,15 +60,15 @@
               <input id="group-name" type="text" maxlength="40" />
             </label>
             <label>
-              Link zum Teilen
+              Link zur Gruppe
               <span class="row">
                 <input id="share-url" type="text" readonly />
                 <button id="copy" type="button">Kopieren</button>
               </span>
             </label>
-            <p class="hint" id="storage-note" hidden>
-              Speichern im Browser ist nicht möglich. Die Gruppe geht beim
-              Neuladen verloren, es sei denn, du öffnest sie über den Link.
+            <p class="hint">
+              Nur dieser Link enthält die Gruppe. Bewahre ihn auf, zum Beispiel
+              als Lesezeichen.
             </p>
             <button id="clear" type="button" class="danger">
               Gruppe leeren

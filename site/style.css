@@ -136,7 +136,7 @@ input {
 
 /* Gruppe verwalten */
 
-details {
+.card {
   margin-bottom: 12px;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -146,6 +146,23 @@ details {
 summary {
   padding: 10px 12px;
   cursor: pointer;
+}
+
+#help {
+  margin-bottom: 16px;
+}
+
+.help-body {
+  padding: 0 12px 4px;
+}
+
+.help-body ol {
+  margin: 0 0 8px;
+  padding-left: 1.2em;
+}
+
+.help-body li {
+  margin-bottom: 6px;
 }
 
 .editor-body {
@@ -249,6 +266,16 @@ td.name {
 td.name small {
   display: block;
   color: var(--muted);
+}
+
+td.rank {
+  font-weight: 600;
+}
+
+td.secondary {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 400;
 }
 
 tr.in-group {
