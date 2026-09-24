@@ -1,9 +1,6 @@
 name: Rangliste laden und veröffentlichen
 
 on:
-  schedule:
-    # UTC: 03:00 MEZ im Winter, 04:00 MESZ im Sommer
-    - cron: "0 2 * * *"
   push:
     branches: [main]
     paths: [site/**, scripts/**, .github/workflows/pages.yml]
