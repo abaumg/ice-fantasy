@@ -19,6 +19,10 @@ tags:
     description: Aufstellung und Budget
   - name: fantasy-results
     description: Ranglisten
+  - name: players
+    description: Spielermarkt und Spielerprofile
+  - name: league
+    description: Spielrunden
 
 paths:
   /auth/register:
@@ -162,7 +166,9 @@ paths:
         - name: leaguePartRound
           in: query
           required: true
-          description: Nummer der Spielrunde
+          description: >
+            `leaguePartRoundId` aus `/leagues/part-round` (nicht die
+            Rundennummer)
           schema:
             type: integer
           example: 2
@@ -284,6 +290,64 @@ paths:
                     leftForwardPoints: 0.0
                     centerForwardPoints: 0.0
                     rightForwardPoints: 0.0
+    post:
+      tags: [fantasy-roster]
+      operationId: saveFantasyRoster
+      summary: Aufstellung speichern (Spieler kaufen oder verkaufen)
+      description: >
+        Überschreibt die komplette Aufstellung der Runde. Kaufen = Spieler auf
+        eine leere Position setzen, Verkaufen = Position leer lassen. Alle
+        Positionen werden immer mitgeschickt, Spieler über ihre
+        `rosterPlayerId`.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/FantasyRosterUpdate"
+            examples:
+              goalie-verkaufen:
+                value:
+                  team: 5678
+                  leaguePartRound: 2
+                  goalie: ""
+                  leftDefender: "20002"
+                  rightDefender: "20003"
+                  leftForward: "20004"
+                  centerForward: "20005"
+                  rightForward: "20006"
+                  captain: ""
+              goalie-kaufen:
+                value:
+                  team: 5678
+                  leaguePartRound: 2
+                  goalie: "20007"
+                  leftDefender: "20002"
+                  rightDefender: "20003"
+                  leftForward: "20004"
+                  centerForward: "20005"
+                  rightForward: "20006"
+                  captain: ""
+      responses:
+        "200":
+          description: Aufstellung gespeichert
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success]
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        "400":
+          description: Aufstellung ungültig, nichts gespeichert
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: You can choose only a maximum of 2 players from the same team in your lineup.
 
   /fantasy/ranking:
     get:
@@ -374,6 +438,252 @@ paths:
                   name: Beispiel-Team B
                   points: 66.5
                   ranking: 2
+
+  /players/fantasy:
+    get:
+      tags: [players]
+      operationId: getFantasyPlayers
+      summary: Spieler einer Position mit Fantasy-Preis abrufen
+      description: Nach Nachname sortiert.
+      parameters:
+        - name: league
+          in: query
+          required: true
+          description: Liga-ID
+          schema:
+            type: integer
+          example: 1
+        - name: season
+          in: query
+          required: true
+          description: Startjahr der Saison (2026 = Saison 2026/27)
+          schema:
+            type: integer
+          example: 2026
+        - name: position
+          in: query
+          required: true
+          description: Goalie (`GK`), Verteidiger (`DE`) oder Forward (`FW`)
+          schema:
+            type: string
+            enum: [GK, DE, FW]
+          example: GK
+        - name: start
+          in: query
+          required: true
+          description: Nullbasierter Offset in der Liste
+          schema:
+            type: integer
+            minimum: 0
+          example: 0
+        - name: count
+          in: query
+          required: true
+          description: Anzahl Einträge pro Seite
+          schema:
+            type: integer
+          example: 50
+      responses:
+        "200":
+          description: Eine Seite der Spielerliste
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FantasyPlayer"
+              example:
+                - playerId: 1007
+                  rosterPlayerId: 20007
+                  firstName: Gustav
+                  lastName: Beispiel
+                  jersey: 35
+                  teamId: 5
+                  teamName: Probe Lions
+                  teamShortcut: PLI
+                  fantasyPrice: 150000
+                  position: GK
+                  imageUrl: https://example.com/players/1007.jpg
+                  teamLogo: https://example.com/logos/5.png
+
+  /players/detail:
+    get:
+      tags: [players]
+      operationId: getPlayerDetail
+      summary: Spielerprofil mit Saisonstatistik abrufen
+      parameters:
+        - name: id
+          in: query
+          required: true
+          description: "`playerId`"
+          schema:
+            type: integer
+          example: 1004
+        - name: season
+          in: query
+          required: true
+          description: Startjahr der Saison (2026 = Saison 2026/27)
+          schema:
+            type: integer
+          example: 2026
+      responses:
+        "200":
+          description: Spielerprofil
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlayerDetail"
+              example:
+                id: 1004
+                first_name: David
+                last_name: Beispiel
+                photo: https://example.com/players/1004.jpg
+                weight: 84
+                height: 183
+                stick: L
+                position: FW
+                birthdate: "1995-06-17"
+                age: 31
+                team_id: 3
+                team_name: Wolves
+                team_shortcut: TWO
+                team_logo: https://example.com/logos/3.png
+                jersey: 11
+                matches:
+                  - id: 8224
+                    date: "2026-10-11"
+                    time: "17:00"
+                    number: 70
+                    round: "10"
+                    arena: Beispiel-Arena
+                    home:
+                      id: 2
+                      name: Muster Bears
+                      shortcut: MBE
+                      logo: https://example.com/logos/2.png
+                      smallLogo: https://example.com/logos/2.png
+                    visitor:
+                      id: 3
+                      name: Test Wolves
+                      shortcut: TWO
+                      logo: https://example.com/logos/3.png
+                      smallLogo: https://example.com/logos/3.png
+                    has_shootout: false
+                    has_overtime: true
+                    status: po zápase
+                    actual_time: KP
+                    match_time: null
+                    bets:
+                      homeWin: 1.95
+                      draw: 4.2
+                      visitorWin: 2.9
+                    home_score: 3
+                    visitor_score: 4
+                    period_score:
+                      - order: 1
+                        type: period
+                        homeTeamScore: 1
+                        visitorTeamScore: 0
+                      - order: 2
+                        type: period
+                        homeTeamScore: 1
+                        visitorTeamScore: 1
+                      - order: 3
+                        type: period
+                        homeTeamScore: 1
+                        visitorTeamScore: 2
+                      - order: 4
+                        type: overtime
+                        homeTeamScore: 0
+                        visitorTeamScore: 1
+                    event:
+                      id: 1
+                      event_name: ICEHL
+                      event_part_name: ICEHL 2026/27
+                    points: 1
+                    goals: 0
+                    assist: 1
+                    penalty_minutes: 2
+                    positives: 1
+                    negatives: 1
+                    shots: 3
+                    faceoffs_win: 0
+                    faceoffs_lost: 0
+                    time_on_ice: 1137
+                league_stats:
+                  - league_id: 1
+                    league_name: ICEHL
+                    team_name: Test Wolves
+                    team_shortcut: TWO
+                    team_id: 3
+                    season: "2026"
+                    games: 9
+                    goals: 5
+                    assists: 3
+                    points: 8
+                    pointsAverage: 0.89
+                    powerPlayPoints: 2
+                    shortHandedPoints: 0
+                    powerPlayGoals: 2
+                    shortHandedGoals: 0
+                    plusMinusPoints: -6
+                    penaltiesInMinutes: 2
+                    penaltiesInMinutesAverage: 0.22
+                    shotsAttempts: 32
+                    shotsOnGoal: 22
+                    shotsMissed: 7
+                    shotsBlocked: 3
+                    scoringEfficiency: 22.73
+                    blocks: 1
+                    gameWinningGoals: 1
+                    faceoffsWin: 50
+                    faceoffsTotal: 96
+                    faceoffsWinPercentage: 52.08
+                    timeOnIce: 9509.35
+                    hits: 0
+
+  /leagues/part-round:
+    get:
+      tags: [league]
+      operationId: getLeaguePartRounds
+      summary: Spielrunden der Saison abrufen
+      parameters:
+        - name: league
+          in: query
+          required: true
+          description: Liga-ID
+          schema:
+            type: integer
+          example: 1
+        - name: season
+          in: query
+          required: true
+          description: Startjahr der Saison (2026 = Saison 2026/27)
+          schema:
+            type: integer
+          example: 2026
+      responses:
+        "200":
+          description: Bisherige Spielrunden, aufsteigend
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LeaguePartRound"
+              example:
+                - leaguePartRoundId: 8
+                  leaguePartId: 56
+                  leaguePartName: ICEHL 2026/27
+                  round: 8
+                  startDate: "2026-09-28"
+                  endDate: "2026-09-30"
+                - leaguePartRoundId: 10
+                  leaguePartId: 56
+                  leaguePartName: ICEHL 2026/27
+                  round: 9
+                  startDate: "2026-10-01"
+                  endDate: "2026-10-02"
 
 components:
   securitySchemes:
@@ -471,7 +781,10 @@ components:
 
     FantasyRoster:
       type: object
-      description: Ohne gespeicherte Aufstellung fehlen alle nicht erforderlichen Felder.
+      description: >
+        Ohne gespeicherte Aufstellung fehlen alle nicht erforderlichen Felder.
+        Bei einer unbesetzten Position sind Spieler und Preis `null`, die
+        Punkte 0.0.
       required: [rosterId, isJokerRoster, totalPoints, budget]
       properties:
         rosterId:
@@ -500,46 +813,64 @@ components:
           nullable: true
           description: Captain der Aufstellung
         goalie:
+          type: object
           allOf:
-            - $ref: "#/components/schemas/FantasyRosterPlayer"
+            - $ref: "#/components/schemas/FantasyPlayer"
+          nullable: true
           description: Goalie
         leftDefender:
+          type: object
           allOf:
-            - $ref: "#/components/schemas/FantasyRosterPlayer"
+            - $ref: "#/components/schemas/FantasyPlayer"
+          nullable: true
           description: Linker Verteidiger
         rightDefender:
+          type: object
           allOf:
-            - $ref: "#/components/schemas/FantasyRosterPlayer"
+            - $ref: "#/components/schemas/FantasyPlayer"
+          nullable: true
           description: Rechter Verteidiger
         leftForward:
+          type: object
           allOf:
-            - $ref: "#/components/schemas/FantasyRosterPlayer"
+            - $ref: "#/components/schemas/FantasyPlayer"
+          nullable: true
           description: Linker Flügel
         centerForward:
+          type: object
           allOf:
-            - $ref: "#/components/schemas/FantasyRosterPlayer"
+            - $ref: "#/components/schemas/FantasyPlayer"
+          nullable: true
           description: Center
         rightForward:
+          type: object
           allOf:
-            - $ref: "#/components/schemas/FantasyRosterPlayer"
+            - $ref: "#/components/schemas/FantasyPlayer"
+          nullable: true
           description: Rechter Flügel
         goaliePrice:
           type: integer
+          nullable: true
           description: Preis des Goalies
         leftDefenderPrice:
           type: integer
+          nullable: true
           description: Preis des linken Verteidigers
         rightDefenderPrice:
           type: integer
+          nullable: true
           description: Preis des rechten Verteidigers
         leftForwardPrice:
           type: integer
+          nullable: true
           description: Preis des linken Flügels
         centerForwardPrice:
           type: integer
+          nullable: true
           description: Preis des Centers
         rightForwardPrice:
           type: integer
+          nullable: true
           description: Preis des rechten Flügels
         goaliePoints:
           type: number
@@ -560,7 +891,7 @@ components:
           type: number
           description: Punkte des rechten Flügels
 
-    FantasyRosterPlayer:
+    FantasyPlayer:
       type: object
       required:
         - playerId
@@ -581,7 +912,9 @@ components:
           example: 1001
         rosterPlayerId:
           type: integer
-          description: ID des Spielers innerhalb dieses Rosters
+          description: >
+            Fantasy-ID des Spielers, gleich in allen Runden; wird beim Speichern
+            der Aufstellung verwendet
           example: 20001
         firstName:
           type: string
@@ -590,6 +923,7 @@ components:
         imageUrl:
           type: string
           format: uri
+          nullable: true
           description: Foto des Spielers
           example: https://example.com/players/1001.jpg
         jersey:
@@ -635,6 +969,547 @@ components:
           type: integer
           description: Summe der Preise der aufgestellten Spieler
           example: 987000
+
+    FantasyRosterUpdate:
+      type: object
+      description: >
+        Position: `rosterPlayerId` des Spielers, leerer Wert = unbesetzt.
+      required:
+        - team
+        - leaguePartRound
+        - goalie
+        - leftDefender
+        - rightDefender
+        - leftForward
+        - centerForward
+        - rightForward
+        - captain
+      properties:
+        team:
+          type: integer
+          description: Team-ID
+        leaguePartRound:
+          type: integer
+          description: "`leaguePartRoundId` der Runde"
+        goalie:
+          type: string
+          description: Goalie
+        leftDefender:
+          type: string
+          description: Linker Verteidiger
+        rightDefender:
+          type: string
+          description: Rechter Verteidiger
+        leftForward:
+          type: string
+          description: Linker Flügel
+        centerForward:
+          type: string
+          description: Center
+        rightForward:
+          type: string
+          description: Rechter Flügel
+        captain:
+          type: string
+          description: Captain, leerer Wert = keiner
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: Fehlermeldung (englisch)
+
+    LeaguePartRound:
+      type: object
+      required:
+        - leaguePartRoundId
+        - leaguePartId
+        - leaguePartName
+        - round
+        - startDate
+        - endDate
+      properties:
+        leaguePartRoundId:
+          type: integer
+          description: >
+            ID der Runde für `leaguePartRound`; weicht von `round` ab, IDs
+            können fehlen
+          example: 10
+        leaguePartId:
+          type: integer
+          description: ID des Saisonabschnitts
+          example: 56
+        leaguePartName:
+          type: string
+          example: ICEHL 2026/27
+        round:
+          type: integer
+          description: Rundennummer ab 1
+          example: 9
+        startDate:
+          type: string
+          format: date
+          example: "2026-10-01"
+        endDate:
+          type: string
+          format: date
+          example: "2026-10-02"
+
+    PlayerDetail:
+      type: object
+      required:
+        - id
+        - first_name
+        - last_name
+        - photo
+        - weight
+        - height
+        - stick
+        - position
+        - birthdate
+        - age
+        - team_id
+        - team_name
+        - team_shortcut
+        - team_logo
+        - jersey
+        - matches
+        - league_stats
+      properties:
+        id:
+          type: integer
+          description: "`playerId`"
+        first_name:
+          type: string
+        last_name:
+          type: string
+        photo:
+          type: string
+          format: uri
+          nullable: true
+        weight:
+          type: integer
+          description: Gewicht in kg
+        height:
+          type: integer
+          description: Größe in cm
+        stick:
+          type: string
+          example: L
+          description: Schusshand
+        position:
+          type: string
+          enum: [GK, DE, FW]
+          description: Goalie (`GK`), Verteidiger (`DE`) oder Forward (`FW`)
+        birthdate:
+          type: string
+          format: date
+        age:
+          type: integer
+        team_id:
+          type: integer
+          description: ID des Vereins
+        team_name:
+          type: string
+          description: Kurzname des Vereins
+        team_shortcut:
+          type: string
+        team_logo:
+          type: string
+          format: uri
+        jersey:
+          type: integer
+          description: Trikotnummer
+        matches:
+          type: array
+          description: Einsätze in der Saison, neueste zuerst
+          items:
+            oneOf:
+              - $ref: "#/components/schemas/GoalieMatch"
+              - $ref: "#/components/schemas/SkaterMatch"
+        league_stats:
+          type: array
+          description: Saisonstatistik je Liga
+          items:
+            oneOf:
+              - $ref: "#/components/schemas/GoalieLeagueStats"
+              - $ref: "#/components/schemas/SkaterLeagueStats"
+
+    PlayerMatch:
+      type: object
+      required:
+        - id
+        - date
+        - time
+        - number
+        - round
+        - arena
+        - home
+        - visitor
+        - has_shootout
+        - has_overtime
+        - status
+        - actual_time
+        - match_time
+        - bets
+        - home_score
+        - visitor_score
+        - period_score
+        - event
+      properties:
+        id:
+          type: integer
+          description: Spiel-ID
+        date:
+          type: string
+          format: date
+        time:
+          type: string
+          example: "17:00"
+          description: Anspielzeit (HH:MM)
+        number:
+          type: integer
+          description: Spielnummer in der Saison
+        round:
+          type: string
+          example: "10"
+          description: Spieltag der Liga (nicht die Fantasy-Runde)
+        arena:
+          type: string
+        home:
+          $ref: "#/components/schemas/MatchTeam"
+        visitor:
+          $ref: "#/components/schemas/MatchTeam"
+        has_shootout:
+          type: boolean
+        has_overtime:
+          type: boolean
+        status:
+          type: string
+          example: po zápase
+          description: Spielstatus (tschechisch)
+        actual_time:
+          type: string
+          example: KP
+          description: >
+            Spielende: `K` regulär, `KP` nach Verlängerung, `KN` nach
+            Penaltyschießen
+        match_time:
+          nullable: true
+        bets:
+          type: object
+          required: [homeWin, draw, visitorWin]
+          description: Wettquoten
+          properties:
+            homeWin:
+              type: number
+              nullable: true
+            draw:
+              type: number
+              nullable: true
+            visitorWin:
+              type: number
+              nullable: true
+        home_score:
+          type: integer
+        visitor_score:
+          type: integer
+        period_score:
+          type: array
+          items:
+            $ref: "#/components/schemas/PeriodScore"
+        event:
+          type: object
+          required: [id, event_name, event_part_name]
+          properties:
+            id:
+              type: integer
+              description: Liga-ID
+            event_name:
+              type: string
+              example: ICEHL
+            event_part_name:
+              type: string
+              example: ICEHL 2026/27
+
+    GoalieMatch:
+      allOf:
+        - $ref: "#/components/schemas/PlayerMatch"
+        - type: object
+          required: [goals_against, saves, time_on_ice, penalty_minutes, assist]
+          properties:
+            goals_against:
+              type: integer
+              description: Gegentore
+            saves:
+              type: integer
+              description: Paraden
+            time_on_ice:
+              type: integer
+              description: Eiszeit in Sekunden
+            penalty_minutes:
+              type: integer
+              description: Strafminuten
+            assist:
+              type: integer
+              description: Assists
+
+    SkaterMatch:
+      allOf:
+        - $ref: "#/components/schemas/PlayerMatch"
+        - type: object
+          required:
+            - points
+            - goals
+            - assist
+            - penalty_minutes
+            - positives
+            - negatives
+            - shots
+            - faceoffs_win
+            - faceoffs_lost
+            - time_on_ice
+          properties:
+            points:
+              type: integer
+              description: Scorerpunkte (Tore + Assists)
+            goals:
+              type: integer
+              description: Tore
+            assist:
+              type: integer
+              description: Assists
+            penalty_minutes:
+              type: integer
+              description: Strafminuten
+            positives:
+              type: integer
+              description: Plus-Punkte (Plus/Minus)
+            negatives:
+              type: integer
+              description: Minus-Punkte (Plus/Minus)
+            shots:
+              type: integer
+              description: Torschüsse
+            faceoffs_win:
+              type: integer
+              description: Gewonnene Bullys
+            faceoffs_lost:
+              type: integer
+              description: Verlorene Bullys
+            time_on_ice:
+              type: integer
+              description: Eiszeit in Sekunden
+
+    MatchTeam:
+      type: object
+      required: [id, name, shortcut, logo, smallLogo]
+      properties:
+        id:
+          type: integer
+          description: ID des Vereins
+        name:
+          type: string
+        shortcut:
+          type: string
+        logo:
+          type: string
+          format: uri
+        smallLogo:
+          type: string
+          format: uri
+
+    PeriodScore:
+      type: object
+      required: [order, type, homeTeamScore, visitorTeamScore]
+      properties:
+        order:
+          type: integer
+          description: Reihenfolge ab 1
+        type:
+          type: string
+          enum: [period, overtime, shootout]
+          description: Drittel, Verlängerung oder Penaltyschießen
+        homeTeamScore:
+          type: integer
+        visitorTeamScore:
+          type: integer
+
+    LeagueStatsBase:
+      type: object
+      required:
+        - league_id
+        - league_name
+        - team_name
+        - team_shortcut
+        - team_id
+        - season
+        - games
+      properties:
+        league_id:
+          type: integer
+          description: Liga-ID
+        league_name:
+          type: string
+          example: ICEHL
+        team_name:
+          type: string
+        team_shortcut:
+          type: string
+        team_id:
+          type: integer
+          description: ID des Vereins
+        season:
+          type: string
+          example: "2026"
+          description: Startjahr der Saison
+        games:
+          type: integer
+          description: Spiele
+
+    GoalieLeagueStats:
+      allOf:
+        - $ref: "#/components/schemas/LeagueStatsBase"
+        - type: object
+          required:
+            - wins
+            - losses
+            - shotsOnGoalAgainst
+            - goalsAgainst
+            - goalsAgainstAverage
+            - saves
+            - savesPercentage
+            - timeOnIceUniversal
+            - shutouts
+          properties:
+            wins:
+              type: integer
+              description: Siege
+            losses:
+              type: integer
+              description: Niederlagen
+            shotsOnGoalAgainst:
+              type: integer
+              description: Schüsse aufs Tor
+            goalsAgainst:
+              type: integer
+              description: Gegentore
+            goalsAgainstAverage:
+              type: number
+              description: Gegentore pro 60 Minuten
+            saves:
+              type: integer
+              description: Paraden
+            savesPercentage:
+              type: number
+              description: Fangquote in Prozent
+            timeOnIceUniversal:
+              type: integer
+              description: Eiszeit gesamt in Sekunden
+            shutouts:
+              type: integer
+              description: Spiele ohne Gegentor
+
+    SkaterLeagueStats:
+      allOf:
+        - $ref: "#/components/schemas/LeagueStatsBase"
+        - type: object
+          required:
+            - goals
+            - assists
+            - points
+            - pointsAverage
+            - powerPlayPoints
+            - shortHandedPoints
+            - powerPlayGoals
+            - shortHandedGoals
+            - plusMinusPoints
+            - penaltiesInMinutes
+            - penaltiesInMinutesAverage
+            - shotsAttempts
+            - shotsOnGoal
+            - shotsMissed
+            - shotsBlocked
+            - scoringEfficiency
+            - blocks
+            - gameWinningGoals
+            - faceoffsWin
+            - faceoffsTotal
+            - faceoffsWinPercentage
+            - timeOnIce
+            - hits
+          properties:
+            goals:
+              type: integer
+              description: Tore
+            assists:
+              type: integer
+              description: Assists
+            points:
+              type: integer
+              description: Scorerpunkte
+            pointsAverage:
+              type: number
+              description: Scorerpunkte pro Spiel
+            powerPlayPoints:
+              type: integer
+              description: Scorerpunkte in Überzahl
+            shortHandedPoints:
+              type: integer
+              description: Scorerpunkte in Unterzahl
+            powerPlayGoals:
+              type: integer
+              description: Tore in Überzahl
+            shortHandedGoals:
+              type: integer
+              description: Tore in Unterzahl
+            plusMinusPoints:
+              type: integer
+              description: Plus/Minus
+            penaltiesInMinutes:
+              type: integer
+              description: Strafminuten
+            penaltiesInMinutesAverage:
+              type: number
+              description: Strafminuten pro Spiel
+            shotsAttempts:
+              type: integer
+              description: Schussversuche
+            shotsOnGoal:
+              type: integer
+              description: Torschüsse
+            shotsMissed:
+              type: integer
+              description: Schüsse neben das Tor
+            shotsBlocked:
+              type: integer
+              description: Geblockte eigene Schüsse
+            scoringEfficiency:
+              type: number
+              description: Tore pro Torschuss in Prozent
+            blocks:
+              type: integer
+              description: Geblockte gegnerische Schüsse
+            gameWinningGoals:
+              type: integer
+              description: Siegtore
+            faceoffsWin:
+              type: integer
+              description: Gewonnene Bullys
+            faceoffsTotal:
+              type: integer
+              description: Bullys gesamt
+            faceoffsWinPercentage:
+              type: number
+              description: Bullyquote in Prozent
+            timeOnIce:
+              type: number
+              description: Eiszeit gesamt in Sekunden
+            hits:
+              type: integer
+              description: Checks
 
     FantasyResultEntry:
       type: object
