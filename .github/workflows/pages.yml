@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write # Schnappschüsse auf den Branch `data` schreiben
   pages: write
   id-token: write
 
@@ -21,15 +21,42 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+    env:
+      ICEHL_EMAIL: ${{ secrets.ICEHL_EMAIL }}
+      ICEHL_PASSWORD: ${{ secrets.ICEHL_PASSWORD }}
+      ICEHL_API_KEY: ${{ secrets.ICEHL_API_KEY }}
+      ICEHL_SNAPSHOTS: snapshots
     steps:
       - uses: actions/checkout@v7
 
+      # Die Schnappschüsse für den Verlauf liegen auf einem eigenen Branch,
+      # damit main sauber bleibt. Beim ersten Lauf wird er angelegt.
+      - name: Schnappschüsse auschecken
+        run: |
+          if git fetch --depth=1 origin data:data; then
+            git worktree add snapshots data
+          else
+            git worktree add --orphan -b data snapshots
+          fi
+
       - name: Rangliste laden
-        env:
-          ICEHL_EMAIL: ${{ secrets.ICEHL_EMAIL }}
-          ICEHL_PASSWORD: ${{ secrets.ICEHL_PASSWORD }}
-          ICEHL_API_KEY: ${{ secrets.ICEHL_API_KEY }}
         run: python3 scripts/fetch_standings.py
+
+      - name: Schnappschuss speichern
+        working-directory: snapshots
+        run: |
+          git add -A
+          git diff --cached --quiet && exit 0
+          git -c user.name="github-actions[bot]" \
+            -c user.email="41898283+github-actions[bot]@users.noreply.github.com" \
+            commit -m "Schnappschuss $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push origin data
+
+      # Fehler hier sollen die Rangliste nicht blockieren; die Seite zeigt dann
+      # im Spieler-Tab einen Hinweis.
+      - name: Spieler laden
+        continue-on-error: true
+        run: python3 scripts/fetch_players.py
 
       - uses: actions/upload-pages-artifact@v5
         with:

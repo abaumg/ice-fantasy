@@ -37,6 +37,12 @@
               den Link ist die Gruppe beim nächsten Besuch weg. Optional merkt
               sich dein Browser die Gruppe: Häkchen unter „Gruppe verwalten“.
             </li>
+            <li>
+              <strong>Verlauf</strong> zeigt die Punkte deiner Teams je
+              Spielrunde (ohne Gruppe: alle Teams), <strong>Spieler</strong>
+              die Scorerpunkte jedes Hockeyspielers je Runde. Tippe auf einen
+              Spieler für alle seine Spiele.
+            </li>
           </ol>
         </div>
       </details>
@@ -49,6 +55,12 @@
         <button role="tab" id="tab-gesamt" aria-controls="panel">
           <span class="tab-label">Gesamt</span>
           <span class="tab-count" id="tab-gesamt-count"></span>
+        </button>
+        <button role="tab" id="tab-verlauf" aria-controls="panel">
+          <span class="tab-label">Verlauf</span>
+        </button>
+        <button role="tab" id="tab-spieler" aria-controls="panel">
+          <span class="tab-label">Spieler</span>
         </button>
       </div>
 
@@ -84,6 +96,26 @@
           </div>
         </details>
 
+        <div id="controls" class="controls" hidden>
+          <label id="view-wrap">
+            Anzeige
+            <select id="view">
+              <option value="zuwachs">Punkte je Runde</option>
+              <option value="stand">Punktestand nach Runde</option>
+              <option value="platz">Platz nach Runde</option>
+            </select>
+          </label>
+          <label id="pos-wrap">
+            Position
+            <select id="pos">
+              <option value="S">Feldspieler (Scorerpunkte)</option>
+              <option value="FW">Stürmer (Scorerpunkte)</option>
+              <option value="DE">Verteidiger (Scorerpunkte)</option>
+              <option value="GK">Goalies (Fangquote)</option>
+            </select>
+          </label>
+        </div>
+
         <input
           id="search"
           type="search"
@@ -100,11 +132,13 @@
             <tbody></tbody>
           </table>
         </div>
+        <p id="note" class="hint note" hidden></p>
       </section>
 
       <footer>
         Inoffizielles Fan-Projekt, nicht mit der ICE Hockey League oder win2day
-        verbunden. Die Rangliste wird einmal täglich aktualisiert.
+        verbunden. Die Rangliste wird einmal täglich aktualisiert. Der Verlauf
+        beginnt mit dem ersten gespeicherten Stand.
       </footer>
     </main>
     <script src="app.js"></script>

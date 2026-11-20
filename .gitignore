@@ -1,4 +1,5 @@
 .env
 .venv/
 *.pyc
-site/data/standings.json
+site/data/
+snapshots/

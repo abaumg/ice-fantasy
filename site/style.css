@@ -9,6 +9,7 @@
   --highlight: #e8f1fb;
   --star: #c98a00;
   --danger: #b3261e;
+  --up: #1e7b34;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -23,6 +24,7 @@
     --highlight: #1d2b3a;
     --star: #f0b429;
     --danger: #f2827a;
+    --up: #6fcf8a;
   }
 }
 
@@ -78,7 +80,6 @@ input {
   align-items: baseline;
   gap: 6px;
   max-width: 60%;
-  padding: 10px 14px;
   background: none;
   border: 0;
   border-bottom: 3px solid transparent;
@@ -333,4 +334,168 @@ label.check input {
   width: auto;
   margin: 0;
   padding: 0;
+}
+
+/* Verlauf und Spieler */
+
+.tabs {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tabs button {
+  flex: none;
+  padding: 10px 12px;
+}
+
+@media (max-width: 480px) {
+  .tabs button {
+    max-width: 38vw;
+    padding: 10px 8px;
+  }
+
+  .tab-count {
+    display: none;
+  }
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.controls label {
+  flex: 1 1 220px;
+}
+
+.controls label[hidden] {
+  display: none;
+}
+
+select {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font: inherit;
+}
+
+.note {
+  margin-top: 8px;
+}
+
+table.matrix th,
+table.matrix td {
+  padding: 6px 8px;
+}
+
+table.matrix .sticky {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 9rem;
+  max-width: 14rem;
+  background: var(--surface);
+  box-shadow: 1px 0 0 var(--border);
+}
+
+table.matrix th.sticky {
+  z-index: 2;
+}
+
+th.round {
+  font-weight: 600;
+}
+
+.live,
+.live-dot {
+  color: var(--muted);
+}
+
+.live {
+  font-style: italic;
+}
+
+td.best {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+td .up,
+td .down {
+  font-size: 0.7em;
+}
+
+td .up {
+  color: var(--up);
+}
+
+td .down {
+  color: var(--danger);
+}
+
+td.muted {
+  color: var(--muted);
+}
+
+td.strong {
+  font-weight: 600;
+}
+
+th button.sort {
+  padding: 0;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+th[aria-sort="descending"] button.sort,
+th button.sort:has(span) {
+  color: var(--text);
+}
+
+button.expand {
+  padding: 0;
+  background: none;
+  border: 0;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.expand::before {
+  content: "▸ ";
+  color: var(--muted);
+}
+
+button.expand[aria-expanded="true"]::before {
+  content: "▾ ";
+}
+
+tr.detail > td {
+  padding: 0 0 8px;
+  background: var(--bg);
+}
+
+table.games {
+  width: auto;
+  margin: 0 8px;
+  font-size: 0.85rem;
+}
+
+table.games th {
+  position: static;
+  background: none;
+}
+
+table.games th,
+table.games td {
+  padding: 4px 8px;
 }

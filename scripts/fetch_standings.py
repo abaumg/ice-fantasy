@@ -1,194 +1,169 @@
 #!/usr/bin/env python3
 """Lädt die Fantasy-Gesamtrangliste und schreibt sie als JSON für die Webseite.
 
-Einstellungen kommen aus Umgebungsvariablen. Lokal können sie in einer `.env`
-im Projektverzeichnis stehen (Vorlage: `.env.example`); bereits gesetzte
-Umgebungsvariablen haben Vorrang.
+Zusätzlich legt jeder Lauf einen Schnappschuss der Punkte ab und berechnet
+daraus den Punktestand jedes Teams nach jeder Spielrunde (Verlauf). Die API
+kennt keine Historie, deshalb gibt es den Verlauf nur ab dem ersten
+gespeicherten Schnappschuss.
 
-Pflicht:
-  ICEHL_EMAIL, ICEHL_PASSWORD  Login eines Fantasy-Accounts
-  ICEHL_API_KEY                statischer App-Schlüssel für den Login-Request
-
-Optional:
-  ICEHL_SEASON    Startjahr der Saison (Standard: aktuelle Saison, Wechsel im Juli)
-  ICEHL_LEAGUE    Liga-ID (Standard: 1)
-  ICEHL_OUTPUT    Zieldatei (Standard: site/data/standings.json)
-  ICEHL_BASE_URL  API-Basis-URL (nur für Tests)
+Einstellungen siehe scripts/icehl.py. Zusätzlich optional:
+  ICEHL_OUTPUT       Zieldatei Rangliste (Standard: site/data/standings.json)
+  ICEHL_HISTORY      Zieldatei Verlauf (Standard: site/data/history.json)
+  ICEHL_SNAPSHOTS    Ordner der Schnappschüsse (Standard: snapshots/); im
+                     Workflow ein Checkout des Branches `data`
 """
 
 import json
 import os
 import sys
-import time
-import urllib.error
-import urllib.parse
-import urllib.request
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-ROOT = Path(__file__).resolve().parent.parent
-ENV_FILE = ROOT / ".env"
-DEFAULT_BASE_URL = "https://icehl.hokejovyzapis.cz/api/v1"
-DEFAULT_OUTPUT = ROOT / "site" / "data" / "standings.json"
-PAGE_SIZE = 50
-MAX_PAGES = 200
-PAUSE_SECONDS = 0.3
-RETRIES = 3
-USER_AGENT = "ice-fantasy-standings/1.0"
+from icehl import DATA_DIR, ROOT, connect, season_label, write_json
+
+# Spielrunden und Spiele sind österreichische Kalendertage.
+try:
+    LOCAL_TZ = ZoneInfo("Europe/Vienna")
+except ZoneInfoNotFoundError:
+    LOCAL_TZ = timezone.utc
+
+# Ein Schnappschuss zählt als Endstand einer Runde, wenn er nach deren letztem
+# Tag und vor diesem Zeitpunkt am ersten Tag der nächsten Runde entstand
+# (Spiele beginnen frühestens am Nachmittag).
+NEXT_ROUND_CUTOFF_HOUR = 12
+SNAPSHOT_FORMAT = "%Y-%m-%dT%H%M"
 
 
-def load_env_file(path):
-    """Liest KEY=WERT-Zeilen in os.environ. Bereits gesetzte Variablen bleiben.
+def snapshot_name(moment):
+    return moment.astimezone(LOCAL_TZ).strftime(SNAPSHOT_FORMAT) + ".json"
 
-    Unterstützt Kommentarzeilen (#), optionales `export` und Werte in
-    Anführungszeichen. Kommentare hinter dem Wert gibt es bewusst nicht, weil
-    ein Passwort ein # enthalten kann.
-    """
-    if not path.is_file():
-        return
-    lines = path.read_text(encoding="utf-8").splitlines()
-    for number, line in enumerate(lines, start=1):
-        line = line.strip()
-        if not line or line.startswith("#"):
+
+def save_snapshot(directory, season, moment, teams):
+    path = directory / str(season) / snapshot_name(moment)
+    write_json(path, {str(team["id"]): team["points"] for team in teams})
+    return path
+
+
+def load_snapshots(directory, season):
+    """Alle Schnappschüsse der Saison als (Zeitpunkt, {Team-ID: Punkte})."""
+    snapshots = []
+    for path in sorted((directory / str(season)).glob("*.json")):
+        try:
+            moment = datetime.strptime(path.stem, SNAPSHOT_FORMAT)
+        except ValueError:
             continue
-        key, separator, value = line.removeprefix("export ").partition("=")
-        key, value = key.strip(), value.strip()
-        if not separator or not key.isidentifier():
-            sys.exit(f"{path.name}, Zeile {number}: erwartet KEY=WERT")
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
-            value = value[1:-1]
-        os.environ.setdefault(key, value)
+        points = json.loads(path.read_text(encoding="utf-8"))
+        snapshots.append((moment.replace(tzinfo=LOCAL_TZ), points))
+    return snapshots
 
 
-def current_season(today=None):
-    """Startjahr der laufenden Saison; die Saison beginnt im Herbst."""
-    today = today or date.today()
-    return today.year if today.month >= 7 else today.year - 1
+def round_end_snapshots(rounds, snapshots):
+    """Ordnet jeder abgeschlossenen Runde den passenden Schnappschuss zu.
+
+    Gewählt wird der letzte Schnappschuss zwischen dem Ende der Runde und dem
+    Beginn der nächsten. Runden ohne passenden Schnappschuss fehlen; ihre
+    Punkte stecken dann in der nächsten Runde mit Schnappschuss.
+    """
+    result = []
+    for index, current in enumerate(rounds):
+        end = date.fromisoformat(current["endDate"]) + timedelta(days=1)
+        earliest = datetime.combine(end, datetime.min.time(), LOCAL_TZ)
+        latest = None
+        if index + 1 < len(rounds):
+            start = date.fromisoformat(rounds[index + 1]["startDate"])
+            latest = datetime.combine(start, datetime.min.time(), LOCAL_TZ)
+            latest += timedelta(hours=NEXT_ROUND_CUTOFF_HOUR)
+            latest = max(latest, earliest + timedelta(hours=NEXT_ROUND_CUTOFF_HOUR))
+        candidates = [
+            (moment, points)
+            for moment, points in snapshots
+            if moment >= earliest and (latest is None or moment < latest)
+        ]
+        if candidates:
+            result.append((current, *candidates[-1]))
+    return result
 
 
-class Api:
-    def __init__(self, base_url, league):
-        self.base_url = base_url.rstrip("/")
-        self.league = league
+def build_history(teams, rounds, snapshots, now):
+    """Punktestand jedes aktuellen Teams nach jeder Runde mit Schnappschuss.
 
-    def call(self, method, path, token, body=None, params=None):
-        url = self.base_url + path
-        if params:
-            url += "?" + urllib.parse.urlencode(params)
-        headers = {
-            "Accept": "application/json",
-            "Authorization": f"Bearer {token}",
-            "User-Agent": USER_AGENT,
+    Ein Team, das in einem Schnappschuss fehlt, hatte noch keine Punkte (0).
+    Die laufende Runde kommt als letzter Eintrag mit `live: true` dazu.
+    """
+    entries = round_end_snapshots(rounds, snapshots)
+    columns = [
+        {
+            "round": current["round"],
+            "startDate": current["startDate"],
+            "endDate": current["endDate"],
+            "snapshot": moment.isoformat(timespec="minutes"),
         }
-        data = None
-        if body is not None:
-            data = json.dumps(body).encode()
-            headers["Content-Type"] = "application/json"
-        request = urllib.request.Request(
-            url, data=data, headers=headers, method=method
+        for current, moment, _ in entries
+    ]
+    tables = [points for _, _, points in entries]
+
+    today = now.astimezone(LOCAL_TZ).date().isoformat()
+    last_done = columns[-1]["round"] if columns else 0
+    running = [r for r in rounds if r["round"] > last_done and r["startDate"] <= today]
+    if running:
+        current = running[-1]
+        columns.append(
+            {
+                "round": current["round"],
+                "startDate": current["startDate"],
+                "endDate": current["endDate"],
+                "snapshot": now.astimezone(LOCAL_TZ).isoformat(timespec="minutes"),
+                "live": True,
+            }
         )
+        tables.append({str(team["id"]): team["points"] for team in teams})
 
-        for attempt in range(1, RETRIES + 1):
-            try:
-                with urllib.request.urlopen(request, timeout=30) as response:
-                    return json.load(response)
-            except urllib.error.HTTPError as error:
-                # 4xx ist endgültig (z. B. falsche Zugangsdaten), nur 5xx wiederholen.
-                if error.code < 500 or attempt == RETRIES:
-                    sys.exit(f"{method} {path}: HTTP {error.code}")
-            except (urllib.error.URLError, TimeoutError) as error:
-                if attempt == RETRIES:
-                    sys.exit(f"{method} {path}: {error}")
-            time.sleep(2**attempt)
-
-    def login(self, email, password, api_key):
-        data = self.call(
-            "POST", "/auth/login", api_key, {"email": email, "password": password}
-        )
-        token = data.get("access_token") if isinstance(data, dict) else None
-        if not token:
-            sys.exit("Login: Antwort enthält keinen access_token")
-        return token
-
-    def fetch_teams(self, token, season):
-        teams, seen = [], set()
-        for page in range(MAX_PAGES):
-            rows = self.call(
-                "GET",
-                "/fantasy/results",
-                token,
-                params={
-                    "league": self.league,
-                    "season": season,
-                    "start": page * PAGE_SIZE,
-                    "count": PAGE_SIZE,
-                },
-            )
-            if not isinstance(rows, list):
-                sys.exit(f"Seite {page}: Liste erwartet")
-            for row in rows:
-                if row["id"] not in seen:
-                    seen.add(row["id"])
-                    teams.append(
-                        {
-                            "id": row["id"],
-                            "name": row["name"],
-                            "points": row["points"],
-                            "ranking": row["ranking"],
-                        }
-                    )
-            if len(rows) < PAGE_SIZE:
-                return teams
-            time.sleep(PAUSE_SECONDS)
-        sys.exit(f"Mehr als {MAX_PAGES} Seiten, Abbruch")
-
-
-def write_json(path, payload):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp = path.with_suffix(".tmp")
-    temp.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
-    temp.replace(path)
+    points = {
+        str(team["id"]): [table.get(str(team["id"]), 0) for table in tables]
+        for team in teams
+    }
+    return {
+        "updatedAt": now.isoformat(timespec="seconds"),
+        "rounds": columns,
+        "points": points,
+    }
 
 
 def main():
-    load_env_file(ENV_FILE)
-
-    credentials = {
-        name: os.environ.get(name, "")
-        for name in ("ICEHL_EMAIL", "ICEHL_PASSWORD", "ICEHL_API_KEY")
-    }
-    missing = [name for name, value in credentials.items() if not value]
-    if missing:
-        sys.exit(
-            f"Fehlende Einstellungen: {', '.join(missing)} "
-            f"(als Umgebungsvariable oder in {ENV_FILE.name}, siehe .env.example)"
-        )
-
-    league = int(os.environ.get("ICEHL_LEAGUE") or 1)
-    season = int(os.environ.get("ICEHL_SEASON") or current_season())
-    output = Path(os.environ.get("ICEHL_OUTPUT") or DEFAULT_OUTPUT)
-    api = Api(os.environ.get("ICEHL_BASE_URL") or DEFAULT_BASE_URL, league)
-
-    token = api.login(
-        credentials["ICEHL_EMAIL"],
-        credentials["ICEHL_PASSWORD"],
-        credentials["ICEHL_API_KEY"],
+    api = connect()
+    output = Path(os.environ.get("ICEHL_OUTPUT") or DATA_DIR / "standings.json")
+    history_output = Path(
+        os.environ.get("ICEHL_HISTORY") or DATA_DIR / "history.json"
     )
-    teams = api.fetch_teams(token, season)
+    snapshot_dir = Path(os.environ.get("ICEHL_SNAPSHOTS") or ROOT / "snapshots")
+
+    teams = api.fetch_teams()
     if not teams:
         sys.exit("Rangliste ist leer, bestehende Daten bleiben unverändert")
-
     teams.sort(key=lambda team: team["ranking"])
+    rounds = api.fetch_rounds()
+
+    now = datetime.now(timezone.utc)
     write_json(
         output,
         {
-            "updatedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-            "league": league,
-            "season": season,
+            "updatedAt": now.isoformat(timespec="seconds"),
+            "league": api.league,
+            "season": api.season,
             "teams": teams,
         },
     )
-    print(f"{len(teams)} Teams, Saison {season}/{(season + 1) % 100:02d} -> {output}")
+    print(f"{len(teams)} Teams, Saison {season_label(api.season)} -> {output}")
+
+    snapshot = save_snapshot(snapshot_dir, api.season, now, teams)
+    snapshots = load_snapshots(snapshot_dir, api.season)
+    history = build_history(teams, rounds, snapshots, now)
+    write_json(history_output, history)
+    print(
+        f"Schnappschuss {snapshot.name}, {len(snapshots)} gesamt, "
+        f"Verlauf mit {len(history['rounds'])} Runden -> {history_output}"
+    )
 
 
 if __name__ == "__main__":
