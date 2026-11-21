@@ -18,7 +18,7 @@ verbunden.
   zum einzelnen Spiel).
 - **Verlauf:** Die API kennt nur die aktuellen Gesamtpunkte. Deshalb legt jeder
   Workflow-Lauf einen Schnappschuss der Punkte auf dem Branch `data` ab
-  (`<Saison>/<Zeitpunkt>.json`). Als Endstand einer Runde gilt der letzte
+  (`<Saison>/<Zeitpunkt>.json`), sofern sich seit dem letzten etwas geändert hat. Als Endstand einer Runde gilt der letzte
   Schnappschuss zwischen ihrem letzten Tag und 12 Uhr am ersten Tag der
   nächsten Runde. Runden ohne passenden Schnappschuss werden mit der folgenden
   zusammengefasst (z. B. „R5–6“). Der Verlauf beginnt also erst mit dem ersten

@@ -40,8 +40,17 @@ def snapshot_name(moment):
 
 
 def save_snapshot(directory, season, moment, teams):
+    """Speichert die Punkte, außer sie sind gleich wie im letzten Schnappschuss.
+
+    Der Workflow läuft mehrmals pro Nacht; ohne diese Prüfung entstünden viele
+    identische Dateien. Liefert den Pfad oder None, wenn nichts neu war.
+    """
+    points = {str(team["id"]): team["points"] for team in teams}
+    existing = sorted((directory / str(season)).glob("*.json"))
+    if existing and json.loads(existing[-1].read_text(encoding="utf-8")) == points:
+        return None
     path = directory / str(season) / snapshot_name(moment)
-    write_json(path, {str(team["id"]): team["points"] for team in teams})
+    write_json(path, points)
     return path
 
 
@@ -160,8 +169,9 @@ def main():
     snapshots = load_snapshots(snapshot_dir, api.season)
     history = build_history(teams, rounds, snapshots, now)
     write_json(history_output, history)
+    saved = snapshot.name if snapshot else "unverändert, nicht gespeichert"
     print(
-        f"Schnappschuss {snapshot.name}, {len(snapshots)} gesamt, "
+        f"Schnappschuss {saved}, {len(snapshots)} gesamt, "
         f"Verlauf mit {len(history['rounds'])} Runden -> {history_output}"
     )
 
